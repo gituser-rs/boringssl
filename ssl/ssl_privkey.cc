@@ -558,10 +558,6 @@ static bool sigalgs_unique(Span<const uint16_t> in_sigalgs) {
 }
 
 static bool set_sigalg_prefs(Array<uint16_t> *out, Span<const uint16_t> prefs) {
-  if (!sigalgs_unique(prefs)) {
-    return false;
-  }
-
   // Check for invalid algorithms, and filter out |SSL_SIGN_RSA_PKCS1_MD5_SHA1|.
   Array<uint16_t> filtered;
   if (!filtered.Init(prefs.size())) {
