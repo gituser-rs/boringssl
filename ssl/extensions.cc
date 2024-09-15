@@ -3114,8 +3114,30 @@ bool ssl_negotiate_alps(SSL_HANDSHAKE *hs, uint8_t *out_alert,
   return true;
 }
 
+
+static bool fake_ext_record_size_limit_add_clienthello(
+    const SSL_HANDSHAKE *hs, CBB *out, CBB *out_compressible,
+    ssl_client_hello_type_t type) {
+  CBB ext;
+
+  if (!CBB_add_u16(out, TLSEXT_TYPE_record_size_limit) ||
+      !CBB_add_u16_length_prefixed(out, &ext) || !CBB_add_u16(&ext, 16385) ||
+      !CBB_flush(out)) {
+    return false;
+  }
+
+  return true;
+}
+
 // kExtensions contains all the supported extensions.
 static const struct tls_extension kExtensions[] = {
+  {
+    TLSEXT_TYPE_record_size_limit,
+    ext_record_size_limit_add_clienthello,
+    forbid_parse_serverhello,
+    ext_sigalgs_parse_clienthello,
+    dont_add_serverhello,
+  },
   {
     TLSEXT_TYPE_server_name,
     ext_sni_add_clienthello,

@@ -241,6 +241,7 @@ extern "C" {
 
 // ExtensionType value from RFC 9345
 #define TLSEXT_TYPE_delegated_credential 34
+#define TLSEXT_TYPE_record_size_limit 28
 
 // ExtensionType value from draft-vvv-tls-alps. This is not an IANA defined
 // extension number.
