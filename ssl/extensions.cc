@@ -3119,7 +3119,7 @@ static bool ext_record_size_limit_add_clienthello(
     const SSL_HANDSHAKE *hs, CBB *out, CBB *out_compressible,
     ssl_client_hello_type_t type) {
   if (hs->config->record_size_limit == 0) {
-    return 0;
+    return true;
   }
 
   CBB ext;
@@ -3385,7 +3385,9 @@ bool ssl_set_extension_order(SSL_HANDSHAKE *hs) {
 
   const char *delimiter = "-";
 
-  char *tmp = OPENSSL_strdup(hs->config->extension_order);
+  char *tmp = new char[strlen(hs->config->extension_order) + 1];
+  strcpy(tmp, hs->config->extension_order);
+
   char *ext = strtok(tmp, delimiter);
   size_t idx = 0;
   while (ext != nullptr) {
@@ -3395,6 +3397,8 @@ bool ssl_set_extension_order(SSL_HANDSHAKE *hs) {
     ext = strtok(NULL, delimiter);
     idx++;
   }
+
+  free(tmp);
 
   hs->extension_permutation = std::move(order);
   return true;
