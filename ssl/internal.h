@@ -2312,6 +2312,7 @@ bssl::UniquePtr<SSL_SESSION> tls13_create_session_with_ticket(SSL *ssl,
 // ssl_setup_extension_permutation computes a ClientHello extension permutation
 // for |hs|, if applicable. It returns true on success and false on error.
 bool ssl_setup_extension_permutation(SSL_HANDSHAKE *hs);
+bool ssl_set_extension_order(SSL_HANDSHAKE *hs);
 
 // ssl_setup_key_shares computes client key shares and saves them in |hs|. It
 // returns true on success and false on failure. If |override_group_id| is zero,
@@ -3313,6 +3314,9 @@ struct SSL_CONFIG {
   // check_ecdsa_curve indicates whether the server, in TLS 1.2 and below, will
   // check its certificate against the client's supported ECDSA curves.
   bool check_ecdsa_curve : 1;
+
+  uint32_t record_size_limit = 0;
+  const char *extension_order = nullptr;
 };
 
 // From RFC 8446, used in determining PSK modes.
@@ -3918,10 +3922,14 @@ struct ssl_ctx_st : public bssl::RefCounted<ssl_ctx_st> {
   // |aes_hw_override| is true.
   bool aes_hw_override_value : 1;
 
+  uint32_t record_size_limit = 0;
+  const char *extension_order = nullptr;
+
  private:
   friend RefCounted;
   ~ssl_ctx_st();
 };
+
 
 struct ssl_st {
   explicit ssl_st(SSL_CTX *ctx_arg);

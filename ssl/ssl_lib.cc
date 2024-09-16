@@ -657,6 +657,8 @@ SSL *SSL_new(SSL_CTX *ctx) {
   ssl->config->retain_only_sha256_of_client_certs =
       ctx->retain_only_sha256_of_client_certs;
   ssl->config->permute_extensions = ctx->permute_extensions;
+  ssl->config->record_size_limit = ctx->record_size_limit;
+  ssl->config->extension_order = ctx->extension_order;
   ssl->config->aes_hw_override = ctx->aes_hw_override;
   ssl->config->aes_hw_override_value = ctx->aes_hw_override_value;
   ssl->config->tls13_cipher_policy = ctx->tls13_cipher_policy;
@@ -1236,6 +1238,14 @@ int SSL_set_quic_early_data_context(SSL *ssl, const uint8_t *context,
 
 void SSL_CTX_set_early_data_enabled(SSL_CTX *ctx, int enabled) {
   ctx->enable_early_data = !!enabled;
+}
+
+void SSL_CTX_set_extension_order(SSL_CTX *ctx, const char *order) {
+  ctx->extension_order = order;
+}
+
+void SSL_CTX_set_record_size_limit(SSL_CTX *ctx, uint32_t limit) {
+  ctx->record_size_limit = limit;
 }
 
 void SSL_set_early_data_enabled(SSL *ssl, int enabled) {
