@@ -3399,6 +3399,7 @@ bool ssl_set_extension_order(SSL_HANDSHAKE *hs) {
   }
 
   free(tmp);
+  free(ext);
 
   hs->extension_permutation = std::move(order);
   return true;
