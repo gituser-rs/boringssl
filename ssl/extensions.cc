@@ -3385,7 +3385,7 @@ bool ssl_set_extension_order(SSL_HANDSHAKE *hs) {
 
   const char *delimiter = "-";
 
-  char *tmp = _strdup(hs->config->extension_order);
+  char *tmp = OPENSSL_strdup(hs->config->extension_order);
   char *ext = strtok(tmp, delimiter);
   size_t idx = 0;
   while (ext != nullptr) {
