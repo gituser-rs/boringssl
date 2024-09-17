@@ -2517,8 +2517,10 @@ static bool ext_supported_groups_add_clienthello(const SSL_HANDSHAKE *hs,
     }
   }
 
-  CBB_add_u16(&groups_bytes, 0x100);
-  CBB_add_u16(&groups_bytes, 0x101);
+  if (ssl->config->firefox_impersonate) {
+    CBB_add_u16(&groups_bytes, 0x100);
+    CBB_add_u16(&groups_bytes, 0x101);
+  }
 
   return CBB_flush(out_compressible);
 }
