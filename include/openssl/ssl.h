@@ -1748,6 +1748,7 @@ OPENSSL_EXPORT int SSL_CTX_set_cipher_list(SSL_CTX *ctx, const char *str);
 OPENSSL_EXPORT void SSL_CTX_set_extension_order(SSL_CTX *ctx,
                                                 const char *order);
 OPENSSL_EXPORT void SSL_CTX_set_record_size_limit(SSL_CTX *ctx, uint32_t limit);
+OPENSSL_EXPORT void SSL_CTX_set_firefox_impersonate(SSL_CTX *ctx, int value);
 
 // SSL_set_strict_cipher_list configures the cipher list for |ssl|, evaluating
 // |str| as a cipher string and returning error if |str| contains anything

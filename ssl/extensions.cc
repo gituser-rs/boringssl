@@ -2517,6 +2517,9 @@ static bool ext_supported_groups_add_clienthello(const SSL_HANDSHAKE *hs,
     }
   }
 
+  CBB_add_u16(&groups_bytes, 0x100);
+  CBB_add_u16(&groups_bytes, 0x101);
+
   return CBB_flush(out_compressible);
 }
 
@@ -2764,6 +2767,21 @@ static bool ext_quic_transport_params_add_serverhello_legacy(SSL_HANDSHAKE *hs,
 static bool ext_delegated_credential_add_clienthello(
     const SSL_HANDSHAKE *hs, CBB *out, CBB *out_compressible,
     ssl_client_hello_type_t type) {
+  if (!hs->config->firefox_impersonate) {
+    return true;
+  }
+
+  CBB ext, algos;
+
+  if (!CBB_add_u16(out, TLSEXT_TYPE_delegated_credential) ||
+      !CBB_add_u16_length_prefixed(out, &ext) ||
+      !CBB_add_u16_length_prefixed(&ext, &algos) ||
+      !CBB_add_u16(&algos, 0x0403) || !CBB_add_u16(&algos, 0x0503) ||
+      !CBB_add_u16(&algos, 0x0603) || !CBB_add_u16(&algos, 0x0203) ||
+      !CBB_flush(out)) {
+    return false;
+  }
+
   return true;
 }
 

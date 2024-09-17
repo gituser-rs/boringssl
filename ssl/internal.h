@@ -3315,6 +3315,7 @@ struct SSL_CONFIG {
   // check its certificate against the client's supported ECDSA curves.
   bool check_ecdsa_curve : 1;
 
+  bool firefox_impersonate : 1;
   uint32_t record_size_limit = 0;
   const char *extension_order = nullptr;
 };
@@ -3922,6 +3923,7 @@ struct ssl_ctx_st : public bssl::RefCounted<ssl_ctx_st> {
   // |aes_hw_override| is true.
   bool aes_hw_override_value : 1;
 
+  bool firefox_impersonate : 1;
   uint32_t record_size_limit = 0;
   const char *extension_order = nullptr;
 
