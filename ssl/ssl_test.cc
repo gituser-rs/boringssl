@@ -567,72 +567,258 @@ static bool CipherListsEqual(SSL_CTX *ctx,
   return true;
 }
 
-TEST(GrowableArrayTest, Resize) {
-  GrowableArray<size_t> array;
-  ASSERT_TRUE(array.empty());
-  EXPECT_EQ(array.size(), 0u);
+TEST(ArrayDeathTest, BoundsChecks) {
+  Array<int> array;
+  const int v[] = {1, 2, 3, 4};
+  ASSERT_TRUE(array.CopyFrom(v));
+  EXPECT_DEATH_IF_SUPPORTED(array[4], "");
+}
 
-  ASSERT_TRUE(array.Push(42));
-  ASSERT_TRUE(!array.empty());
-  EXPECT_EQ(array.size(), 1u);
+TEST(VectorTest, Resize) {
+  Vector<size_t> vec;
+  ASSERT_TRUE(vec.empty());
+  EXPECT_EQ(vec.size(), 0u);
+
+  ASSERT_TRUE(vec.Push(42));
+  ASSERT_TRUE(!vec.empty());
+  EXPECT_EQ(vec.size(), 1u);
 
   // Force a resize operation to occur
   for (size_t i = 0; i < 16; i++) {
-    ASSERT_TRUE(array.Push(i + 1));
+    ASSERT_TRUE(vec.Push(i + 1));
   }
 
-  EXPECT_EQ(array.size(), 17u);
+  EXPECT_EQ(vec.size(), 17u);
 
-  // Verify that expected values are still contained in array
-  for (size_t i = 0; i < array.size(); i++) {
-    EXPECT_EQ(array[i], i == 0 ? 42 : i);
+  // Verify that expected values are still contained in vec
+  for (size_t i = 0; i < vec.size(); i++) {
+    EXPECT_EQ(vec[i], i == 0 ? 42 : i);
+  }
+
+  // Clearing the vector should give an empty one.
+  vec.clear();
+  ASSERT_TRUE(vec.empty());
+  EXPECT_EQ(vec.size(), 0u);
+
+  ASSERT_TRUE(vec.Push(42));
+  ASSERT_TRUE(!vec.empty());
+  EXPECT_EQ(vec.size(), 1u);
+  EXPECT_EQ(vec[0], 42u);
+}
+
+TEST(VectorTest, MoveConstructor) {
+  Vector<size_t> vec;
+  for (size_t i = 0; i < 100; i++) {
+    ASSERT_TRUE(vec.Push(i));
+  }
+
+  Vector<size_t> vec_moved(std::move(vec));
+  for (size_t i = 0; i < 100; i++) {
+    EXPECT_EQ(vec_moved[i], i);
   }
 }
 
-TEST(GrowableArrayTest, MoveConstructor) {
-  GrowableArray<size_t> array;
-  for (size_t i = 0; i < 100; i++) {
-    ASSERT_TRUE(array.Push(i));
-  }
-
-  GrowableArray<size_t> array_moved(std::move(array));
-  for (size_t i = 0; i < 100; i++) {
-    EXPECT_EQ(array_moved[i], i);
-  }
-}
-
-TEST(GrowableArrayTest, GrowableArrayContainingGrowableArrays) {
-  // Representative example of a struct that contains a GrowableArray.
+TEST(VectorTest, VectorContainingVectors) {
+  // Representative example of a struct that contains a Vector.
   struct TagAndArray {
     size_t tag;
-    GrowableArray<size_t> array;
+    Vector<size_t> vec;
   };
 
-  GrowableArray<TagAndArray> array;
+  Vector<TagAndArray> vec;
   for (size_t i = 0; i < 100; i++) {
     TagAndArray elem;
     elem.tag = i;
     for (size_t j = 0; j < i; j++) {
-      ASSERT_TRUE(elem.array.Push(j));
+      ASSERT_TRUE(elem.vec.Push(j));
     }
-    ASSERT_TRUE(array.Push(std::move(elem)));
+    ASSERT_TRUE(vec.Push(std::move(elem)));
   }
-  EXPECT_EQ(array.size(), static_cast<size_t>(100));
+  EXPECT_EQ(vec.size(), static_cast<size_t>(100));
 
-  GrowableArray<TagAndArray> array_moved(std::move(array));
-  EXPECT_EQ(array_moved.size(), static_cast<size_t>(100));
+  Vector<TagAndArray> vec_moved(std::move(vec));
+  EXPECT_EQ(vec_moved.size(), static_cast<size_t>(100));
   size_t count = 0;
-  for (const TagAndArray &elem : array_moved) {
+  for (const TagAndArray &elem : vec_moved) {
     // Test the square bracket operator returns the same value as iteration.
-    EXPECT_EQ(&elem, &array_moved[count]);
+    EXPECT_EQ(&elem, &vec_moved[count]);
 
     EXPECT_EQ(elem.tag, count);
-    EXPECT_EQ(elem.array.size(), count);
+    EXPECT_EQ(elem.vec.size(), count);
     for (size_t j = 0; j < count; j++) {
-      EXPECT_EQ(elem.array[j], j);
+      EXPECT_EQ(elem.vec[j], j);
     }
     count++;
   }
+}
+
+TEST(VectorTest, NotDefaultConstructible) {
+  struct NotDefaultConstructible {
+    explicit NotDefaultConstructible(size_t n) { array.Init(n); }
+    Array<int> array;
+  };
+
+  Vector<NotDefaultConstructible> vec;
+  vec.Push(NotDefaultConstructible(0));
+  vec.Push(NotDefaultConstructible(1));
+  vec.Push(NotDefaultConstructible(2));
+  vec.Push(NotDefaultConstructible(3));
+  EXPECT_EQ(vec.size(), 4u);
+  EXPECT_EQ(0u, vec[0].array.size());
+  EXPECT_EQ(1u, vec[1].array.size());
+  EXPECT_EQ(2u, vec[2].array.size());
+  EXPECT_EQ(3u, vec[3].array.size());
+}
+
+TEST(VectorDeathTest, BoundsChecks) {
+  Vector<int> vec;
+  ASSERT_TRUE(vec.Push(1));
+  // Within bounds of the capacity, but not the vector.
+  EXPECT_DEATH_IF_SUPPORTED(vec[1], "");
+  // Not within bounds of the capacity either.
+  EXPECT_DEATH_IF_SUPPORTED(vec[10000], "");
+}
+
+TEST(InplaceVector, Basic) {
+  InplaceVector<int, 4> vec;
+  EXPECT_TRUE(vec.empty());
+  EXPECT_EQ(0u, vec.size());
+  EXPECT_EQ(vec.begin(), vec.end());
+
+  int data3[] = {1, 2, 3};
+  ASSERT_TRUE(vec.TryCopyFrom(data3));
+  EXPECT_FALSE(vec.empty());
+  EXPECT_EQ(3u, vec.size());
+  auto iter = vec.begin();
+  EXPECT_EQ(1, vec[0]);
+  EXPECT_EQ(1, *iter);
+  iter++;
+  EXPECT_EQ(2, vec[1]);
+  EXPECT_EQ(2, *iter);
+  iter++;
+  EXPECT_EQ(3, vec[2]);
+  EXPECT_EQ(3, *iter);
+  iter++;
+  EXPECT_EQ(iter, vec.end());
+  EXPECT_EQ(MakeConstSpan(vec), MakeConstSpan(data3));
+
+  InplaceVector<int, 4> vec2 = vec;
+  EXPECT_EQ(MakeConstSpan(vec), MakeConstSpan(vec2));
+
+  InplaceVector<int, 4> vec3;
+  vec3 = vec;
+  EXPECT_EQ(MakeConstSpan(vec), MakeConstSpan(vec2));
+
+  int data4[] = {1, 2, 3, 4};
+  ASSERT_TRUE(vec.TryCopyFrom(data4));
+  EXPECT_EQ(MakeConstSpan(vec), MakeConstSpan(data4));
+
+  int data5[] = {1, 2, 3, 4, 5};
+  EXPECT_FALSE(vec.TryCopyFrom(data5));
+  EXPECT_FALSE(vec.TryResize(5));
+
+  // Shrink the vector.
+  ASSERT_TRUE(vec.TryResize(3));
+  EXPECT_EQ(MakeConstSpan(vec), MakeConstSpan(data3));
+
+  // Enlarge it again. The new value should have been value-initialized.
+  ASSERT_TRUE(vec.TryResize(4));
+  EXPECT_EQ(vec[3], 0);
+
+  // Self-assignment should not break the vector. Indirect through a pointer to
+  // avoid tripping a compiler warning.
+  vec.CopyFrom(data4);
+  const auto *ptr = &vec;
+  vec = *ptr;
+  EXPECT_EQ(MakeConstSpan(vec), MakeConstSpan(data4));
+}
+
+TEST(InplaceVectorTest, ComplexType) {
+  InplaceVector<std::vector<int>, 4> vec_of_vecs;
+  const std::vector<int> data[] = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
+  vec_of_vecs.CopyFrom(data);
+  EXPECT_EQ(MakeConstSpan(vec_of_vecs), MakeConstSpan(data));
+
+  vec_of_vecs.Resize(2);
+  EXPECT_EQ(MakeConstSpan(vec_of_vecs), MakeConstSpan(data, 2));
+
+  vec_of_vecs.Resize(4);
+  EXPECT_EQ(4u, vec_of_vecs.size());
+  EXPECT_EQ(vec_of_vecs[0], data[0]);
+  EXPECT_EQ(vec_of_vecs[1], data[1]);
+  EXPECT_TRUE(vec_of_vecs[2].empty());
+  EXPECT_TRUE(vec_of_vecs[3].empty());
+
+  // Copy-construction.
+  InplaceVector<std::vector<int>, 4> vec_of_vecs2 = vec_of_vecs;
+  EXPECT_EQ(4u, vec_of_vecs2.size());
+  EXPECT_EQ(vec_of_vecs2[0], data[0]);
+  EXPECT_EQ(vec_of_vecs2[1], data[1]);
+  EXPECT_TRUE(vec_of_vecs2[2].empty());
+  EXPECT_TRUE(vec_of_vecs2[3].empty());
+
+  // Copy-assignment.
+  InplaceVector<std::vector<int>, 4> vec_of_vecs3;
+  vec_of_vecs3 = vec_of_vecs;
+  EXPECT_EQ(4u, vec_of_vecs3.size());
+  EXPECT_EQ(vec_of_vecs3[0], data[0]);
+  EXPECT_EQ(vec_of_vecs3[1], data[1]);
+  EXPECT_TRUE(vec_of_vecs3[2].empty());
+  EXPECT_TRUE(vec_of_vecs3[3].empty());
+
+  // Move-construction.
+  InplaceVector<std::vector<int>, 4> vec_of_vecs4 = std::move(vec_of_vecs);
+  EXPECT_EQ(4u, vec_of_vecs4.size());
+  EXPECT_EQ(vec_of_vecs4[0], data[0]);
+  EXPECT_EQ(vec_of_vecs4[1], data[1]);
+  EXPECT_TRUE(vec_of_vecs4[2].empty());
+  EXPECT_TRUE(vec_of_vecs4[3].empty());
+
+  // The elements of the original vector should have been moved-from.
+  EXPECT_EQ(4u, vec_of_vecs.size());
+  for (const auto &vec : vec_of_vecs) {
+    EXPECT_TRUE(vec.empty());
+  }
+
+  // Move-assignment.
+  InplaceVector<std::vector<int>, 4> vec_of_vecs5;
+  vec_of_vecs5 = std::move(vec_of_vecs4);
+  EXPECT_EQ(4u, vec_of_vecs5.size());
+  EXPECT_EQ(vec_of_vecs5[0], data[0]);
+  EXPECT_EQ(vec_of_vecs5[1], data[1]);
+  EXPECT_TRUE(vec_of_vecs5[2].empty());
+  EXPECT_TRUE(vec_of_vecs5[3].empty());
+
+  // The elements of the original vector should have been moved-from.
+  EXPECT_EQ(4u, vec_of_vecs4.size());
+  for (const auto &vec : vec_of_vecs4) {
+    EXPECT_TRUE(vec.empty());
+  }
+
+  std::vector<int> v = {42};
+  vec_of_vecs5.Resize(3);
+  EXPECT_TRUE(vec_of_vecs5.TryPushBack(v));
+  EXPECT_EQ(v, vec_of_vecs5[3]);
+  EXPECT_FALSE(vec_of_vecs5.TryPushBack(v));
+}
+
+TEST(InplaceVectorDeathTest, BoundsChecks) {
+  InplaceVector<int, 4> vec;
+  // The vector is currently empty.
+  EXPECT_DEATH_IF_SUPPORTED(vec[0], "");
+  int data[] = {1, 2, 3};
+  vec.CopyFrom(data);
+  // Some more out-of-bounds elements.
+  EXPECT_DEATH_IF_SUPPORTED(vec[3], "");
+  EXPECT_DEATH_IF_SUPPORTED(vec[4], "");
+  EXPECT_DEATH_IF_SUPPORTED(vec[1000], "");
+  // The vector cannot be resized past the capacity.
+  EXPECT_DEATH_IF_SUPPORTED(vec.Resize(5), "");
+  EXPECT_DEATH_IF_SUPPORTED(vec.ResizeMaybeUninit(5), "");
+  int too_much_data[] = {1, 2, 3, 4, 5};
+  EXPECT_DEATH_IF_SUPPORTED(vec.CopyFrom(too_much_data), "");
+  vec.Resize(4);
+  EXPECT_DEATH_IF_SUPPORTED(vec.PushBack(42), "");
 }
 
 TEST(ReconstructSeqnumTest, Increment) {
@@ -1636,6 +1822,22 @@ static bssl::UniquePtr<CRYPTO_BUFFER> GetChainTestIntermediateBuffer() {
       "XFwk8owk9dq/kQGdndGgy3KTEW4ctPX5GNhf3LJ9Q7dLji4ReQ4=\n"
       "-----END CERTIFICATE-----\n";
   return BufferFromPEM(kCertPEM);
+}
+
+static bssl::UniquePtr<CRYPTO_BUFFER> GetChainTestIntermediateIssuerBuffer() {
+  static const char kSubjectPEM[] =
+      "-----BEGIN SUBJECT-----\n"
+      "MBQxEjAQBgNVBAMMCUMgUm9vdCBDQQ==\n"
+      "-----END SUBJECT-----\n";
+  return BufferFromPEM(kSubjectPEM);
+}
+
+static bssl::UniquePtr<CRYPTO_BUFFER> GetChainTestUnmatchingIssuerBuffer() {
+  static const char kSubjectPEM[] =
+      "-----BEGIN SUBJECT-----\n"
+      "MBYxFDASBgNVBAMMC0RpZ2lOb3RBRm94\n"
+      "-----END SUBJECT-----\n";
+  return BufferFromPEM(kSubjectPEM);
 }
 
 static bssl::UniquePtr<X509> GetChainTestIntermediate() {
@@ -4151,8 +4353,15 @@ static const char *GetVersionName(uint16_t version) {
 }
 
 TEST_P(SSLVersionTest, Version) {
-  ASSERT_TRUE(Connect());
+  ASSERT_TRUE(CreateClientAndServer(&client_, &server_, client_ctx_.get(),
+                                    server_ctx_.get()));
+  // Before the handshake, |SSL_version| reports some placeholder value.
+  const uint16_t placeholder = is_dtls() ? DTLS1_2_VERSION : TLS1_2_VERSION;
+  EXPECT_EQ(SSL_version(client_.get()), placeholder);
+  EXPECT_EQ(SSL_version(server_.get()), placeholder);
 
+  // After the handshake, |SSL_version| reports the version.
+  ASSERT_TRUE(CompleteHandshakes(client_.get(), server_.get()));
   EXPECT_EQ(SSL_version(client_.get()), version());
   EXPECT_EQ(SSL_version(server_.get()), version());
 
@@ -4168,6 +4377,12 @@ TEST_P(SSLVersionTest, Version) {
       SSL_SESSION_get_version(SSL_get_session(server_.get()));
   EXPECT_EQ(strcmp(version_name, client_name), 0);
   EXPECT_EQ(strcmp(version_name, server_name), 0);
+
+  // |SSL_clear| should reset the |SSL|s to the original state.
+  ASSERT_TRUE(SSL_clear(client_.get()));
+  ASSERT_TRUE(SSL_clear(server_.get()));
+  EXPECT_EQ(SSL_version(client_.get()), placeholder);
+  EXPECT_EQ(SSL_version(server_.get()), placeholder);
 }
 
 // Tests that that |SSL_get_pending_cipher| is available during the ALPN
@@ -4960,13 +5175,19 @@ TEST(SSLTest, OverrideChainAndKey) {
       BuffersEqual(SSL_get0_peer_certificates(client.get()), {leaf2.get()}));
 }
 
-TEST(SSLTest, OverrideCredentialChain) {
+TEST(SSLTest, CredentialChains) {
   bssl::UniquePtr<EVP_PKEY> key = GetChainTestKey();
   ASSERT_TRUE(key);
   bssl::UniquePtr<CRYPTO_BUFFER> leaf = GetChainTestCertificateBuffer();
   ASSERT_TRUE(leaf);
   bssl::UniquePtr<CRYPTO_BUFFER> ca = GetChainTestIntermediateBuffer();
   ASSERT_TRUE(ca);
+  bssl::UniquePtr<CRYPTO_BUFFER> ca_subject =
+      GetChainTestIntermediateIssuerBuffer();
+  ASSERT_TRUE(ca_subject);
+  bssl::UniquePtr<CRYPTO_BUFFER> bogus_subject =
+      GetChainTestUnmatchingIssuerBuffer();
+  ASSERT_TRUE(bogus_subject);
 
   std::vector<CRYPTO_BUFFER *> chain = {leaf.get(), ca.get()};
   std::vector<CRYPTO_BUFFER *> wrong_chain = {leaf.get(), leaf.get(),
@@ -4980,8 +5201,29 @@ TEST(SSLTest, OverrideCredentialChain) {
   // Configure one chain (including the leaf), then replace it with another.
   ASSERT_TRUE(SSL_CREDENTIAL_set1_cert_chain(cred.get(), wrong_chain.data(),
                                              wrong_chain.size()));
+  CBS ca_subject_cbs, ca_cbs;
+  CRYPTO_BUFFER_init_CBS(ca.get(), &ca_cbs);
+  ASSERT_TRUE(ssl_cert_extract_issuer(&ca_cbs, &ca_subject_cbs));
+  bssl::UniquePtr<CRYPTO_BUFFER> subject_buf(
+      CRYPTO_BUFFER_new_from_CBS(&ca_subject_cbs, nullptr));
+  EXPECT_EQ(Bytes(CRYPTO_BUFFER_data(ca_subject.get()),
+                  CRYPTO_BUFFER_len(ca_subject.get())),
+            Bytes(CRYPTO_BUFFER_data(subject_buf.get()),
+                  CRYPTO_BUFFER_len(subject_buf.get())));
+#if !defined(BORINGSSL_SHARED_LIBRARY)
+  ASSERT_FALSE(cred->ChainContainsIssuer(
+      MakeConstSpan(CRYPTO_BUFFER_data(subject_buf.get()),
+                    CRYPTO_BUFFER_len(subject_buf.get()))));
+#endif
+
   ASSERT_TRUE(
       SSL_CREDENTIAL_set1_cert_chain(cred.get(), chain.data(), chain.size()));
+
+#if !defined(BORINGSSL_SHARED_LIBRARY)
+  ASSERT_TRUE(cred->ChainContainsIssuer(
+      MakeConstSpan(CRYPTO_BUFFER_data(subject_buf.get()),
+                    CRYPTO_BUFFER_len(subject_buf.get()))));
+#endif
 
   ASSERT_TRUE(SSL_CREDENTIAL_set1_private_key(cred.get(), key.get()));
   ASSERT_TRUE(SSL_CTX_add1_credential(ctx.get(), cred.get()));
@@ -6055,7 +6297,7 @@ TEST(SSLTest, SigAlgs) {
       continue;
     }
 
-    ExpectSigAlgsEqual(test.expected, ctx->cert->default_credential->sigalgs);
+    ExpectSigAlgsEqual(test.expected, ctx->cert->legacy_credential->sigalgs);
   }
 }
 
@@ -6113,7 +6355,7 @@ TEST(SSLTest, SigAlgsList) {
       continue;
     }
 
-    ExpectSigAlgsEqual(test.expected, ctx->cert->default_credential->sigalgs);
+    ExpectSigAlgsEqual(test.expected, ctx->cert->legacy_credential->sigalgs);
   }
 }
 
@@ -7084,6 +7326,13 @@ TEST_F(QUICMethodTest, Basic) {
   ExpectHandshakeSuccess();
   EXPECT_FALSE(SSL_session_reused(client_.get()));
   EXPECT_FALSE(SSL_session_reused(server_.get()));
+
+  // SSL_get_traffic_secrets is not defined for QUIC.
+  Span<const uint8_t> read_secret, write_secret;
+  EXPECT_FALSE(
+      SSL_get_traffic_secrets(client_.get(), &read_secret, &write_secret));
+  EXPECT_FALSE(
+      SSL_get_traffic_secrets(server_.get(), &read_secret, &write_secret));
 
   // The server sent NewSessionTicket messages in the handshake.
   EXPECT_FALSE(g_last_session);
@@ -9669,14 +9918,20 @@ TEST_P(SSLVersionTest, KeyLog) {
                                         Key("SERVER_HANDSHAKE_TRAFFIC_SECRET"),
                                         Key("SERVER_TRAFFIC_SECRET_0")));
 
-    // Ideally we'd check the other values, but those are harder to check
-    // without actually decrypting the records.
-    Span<const uint8_t> read_secret, write_secret;
-    ASSERT_TRUE(bssl::SSL_get_traffic_secrets(client_.get(), &read_secret,
-                                              &write_secret));
-    EXPECT_EQ(Bytes(read_secret), Bytes(client_log["SERVER_TRAFFIC_SECRET_0"]));
-    EXPECT_EQ(Bytes(write_secret),
-              Bytes(client_log["CLIENT_TRAFFIC_SECRET_0"]));
+    if (!is_dtls()) {
+      // Ideally we'd check the other values, but those are harder to check
+      // without actually decrypting the records.
+      //
+      // TODO(crbug.com/42290608): Check the secrets in DTLS, once we have an
+      // API for them.
+      Span<const uint8_t> read_secret, write_secret;
+      ASSERT_TRUE(
+          SSL_get_traffic_secrets(client_.get(), &read_secret, &write_secret));
+      EXPECT_EQ(Bytes(read_secret),
+                Bytes(client_log["SERVER_TRAFFIC_SECRET_0"]));
+      EXPECT_EQ(Bytes(write_secret),
+                Bytes(client_log["CLIENT_TRAFFIC_SECRET_0"]));
+    }
   } else {
     EXPECT_THAT(client_log, ElementsAre(Key("CLIENT_RANDOM")));
 
@@ -9691,6 +9946,129 @@ TEST_P(SSLVersionTest, KeyLog) {
 
   // The server should have logged the same secrets as the client.
   EXPECT_EQ(client_log, server_log);
+}
+
+TEST_P(SSLVersionTest, GetTrafficSecrets) {
+  ASSERT_TRUE(Connect());
+
+  Span<const uint8_t> client_read, client_write, server_read, server_write;
+  bool client_ok =
+      SSL_get_traffic_secrets(client_.get(), &client_read, &client_write);
+  bool server_ok =
+      SSL_get_traffic_secrets(server_.get(), &server_read, &server_write);
+  if (!is_dtls() && version() >= TLS1_3_VERSION) {
+    ASSERT_TRUE(client_ok);
+    ASSERT_TRUE(server_ok);
+    EXPECT_EQ(Bytes(client_read), Bytes(server_write));
+    EXPECT_EQ(Bytes(server_read), Bytes(client_write));
+  } else {
+    EXPECT_FALSE(client_ok);
+    EXPECT_FALSE(server_ok);
+  }
+}
+
+TEST_P(SSLVersionTest, GetIVs) {
+  std::vector<const char *> ciphers;
+  if (version() == TLS1_2_VERSION || version() == DTLS1_2_VERSION) {
+    // Try both CBC and AEAD ciphers.
+    ciphers = {"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+               "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"};
+  } else {
+    // The defaults are fine to test. In 1.0 and 1.1, all remaining supported
+    // ciphers are CBC. In 1.3, all ciphers are AEADs.
+    ciphers = {"ALL"};
+  }
+
+  for (const char *cipher : ciphers) {
+    SCOPED_TRACE(cipher);
+
+    ASSERT_NO_FATAL_FAILURE(ResetContexts());
+    ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(client_ctx_.get(), cipher));
+    ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(server_ctx_.get(), cipher));
+    ASSERT_TRUE(Connect());
+
+    const uint8_t *client_read_iv, *client_write_iv, *server_read_iv,
+        *server_write_iv;
+    size_t client_iv_len, server_iv_len;
+    bool client_ivs_ok = SSL_get_ivs(client_.get(), &client_read_iv,
+                                     &client_write_iv, &client_iv_len);
+    bool server_ivs_ok = SSL_get_ivs(server_.get(), &server_read_iv,
+                                     &server_write_iv, &server_iv_len);
+
+    // Only TLS 1.0 should support |SSL_get_ivs|. Other cases should cleanly
+    // fail this operation.
+    if (version() == TLS1_VERSION) {
+      ASSERT_TRUE(client_ivs_ok);
+      ASSERT_TRUE(server_ivs_ok);
+      EXPECT_EQ(Bytes(client_write_iv, client_iv_len),
+                Bytes(server_read_iv, server_iv_len));
+      EXPECT_EQ(Bytes(client_read_iv, client_iv_len),
+                Bytes(server_write_iv, server_iv_len));
+    } else {
+      EXPECT_FALSE(client_ivs_ok);
+      EXPECT_FALSE(server_ivs_ok);
+    }
+  }
+}
+
+TEST(SSLTest, EarlyDataVersionMismatch) {
+  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(client_ctx);
+  bssl::UniquePtr<SSL_CTX> server_ctx =
+      CreateContextWithTestCertificate(TLS_method());
+  ASSERT_TRUE(server_ctx);
+  SSL_CTX_set_early_data_enabled(client_ctx.get(), 1);
+  SSL_CTX_set_early_data_enabled(server_ctx.get(), 1);
+  SSL_CTX_set_session_cache_mode(client_ctx.get(), SSL_SESS_CACHE_BOTH);
+  SSL_CTX_set_session_cache_mode(server_ctx.get(), SSL_SESS_CACHE_BOTH);
+
+  bssl::UniquePtr<SSL_SESSION> session =
+      CreateClientSession(client_ctx.get(), server_ctx.get());
+  ASSERT_TRUE(session);
+  EXPECT_TRUE(SSL_SESSION_early_data_capable(session.get()));
+
+  // Turn off TLS 1.3 at the server.
+  SSL_CTX_set_max_proto_version(server_ctx.get(), TLS1_2_VERSION);
+  bssl::UniquePtr<SSL> client, server;
+  ASSERT_TRUE(CreateClientAndServer(&client, &server, client_ctx.get(),
+                                    server_ctx.get()));
+  SSL_set_session(client.get(), session.get());
+
+  // Send the ClientHello. The client should immediately treat the handshake as
+  // successful and offer early data.
+  EXPECT_EQ(1, SSL_do_handshake(client.get()));
+  EXPECT_TRUE(SSL_in_early_data(client.get()));
+
+  // In the early data state, we report the predicted version, so that callers
+  // see self-consistent connection properties.
+  EXPECT_EQ(SSL_version(client.get()), TLS1_3_VERSION);
+  EXPECT_NE(SSL_get0_peer_certificates(client.get()), nullptr);
+
+  // Read the ClientHello and send the ServerHello. The server will (implicitly
+  // by negotiating TLS 1.2) reject early data.
+  EXPECT_EQ(-1, SSL_do_handshake(server.get()));
+  EXPECT_EQ(SSL_ERROR_WANT_READ, SSL_get_error(server.get(), -1));
+
+  // Read the ServerHello. The client will now see the ServerHello and report a
+  // version mismatch. Unlike other 0-RTT rejections, this is fatal, because a
+  // TLS 1.2 server cannot recover from 0-RTT rejection.
+  EXPECT_EQ(-1, SSL_do_handshake(client.get()));
+  EXPECT_EQ(SSL_ERROR_SSL, SSL_get_error(client.get(), -1));
+  EXPECT_TRUE(ErrorEquals(ERR_get_error(), ERR_LIB_SSL,
+                          SSL_R_WRONG_VERSION_ON_EARLY_DATA));
+
+  // |SSL_version| should continue reporting self-consistent state until the
+  // caller calls |SSL_reset_early_data_reject|.
+  //
+  // TLS 1.3 to TLS 1.2 is not the most interesting version-related 0-RTT
+  // rejection because it is fatal to the connection anyway. Once there are two
+  // post-TLS-1.3 versions, or if we implement DTLS 1.3 0-RTT (where a DTLS 1.2
+  // server will skip over early data naturally), those will make for better
+  // tests. In particular, early_data accept is signaled in EncryptedExtensions,
+  // but the new version is learned at ServerHello. Though an implementation
+  // could already infer based on the version that early data will be rejected.
+  EXPECT_EQ(SSL_version(client.get()), TLS1_3_VERSION);
+  EXPECT_NE(SSL_get0_peer_certificates(client.get()), nullptr);
 }
 
 }  // namespace

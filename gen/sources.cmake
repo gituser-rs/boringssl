@@ -414,6 +414,7 @@ set(
   crypto/rsa_extra/rsa_print.c
   crypto/sha/sha1.c
   crypto/sha/sha256.c
+  crypto/sha/sha512.c
   crypto/siphash/siphash.c
   crypto/slhdsa/fors.c
   crypto/slhdsa/merkle.c
@@ -2718,9 +2719,12 @@ set(
   rust/bssl-crypto/src/lib.rs
   rust/bssl-crypto/src/macros.rs
   rust/bssl-crypto/src/mem.rs
+  rust/bssl-crypto/src/mldsa.rs
+  rust/bssl-crypto/src/mlkem.rs
   rust/bssl-crypto/src/rand.rs
   rust/bssl-crypto/src/rsa.rs
   rust/bssl-crypto/src/scoped.rs
+  rust/bssl-crypto/src/slhdsa.rs
   rust/bssl-crypto/src/test_helpers.rs
   rust/bssl-crypto/src/x25519.rs
 )
